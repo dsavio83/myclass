@@ -77,6 +77,8 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
+const PORT = process.env.PORT || 5000;
+
 // Only start server if not in Vercel environment
 if (process.env.VERCEL !== '1') {
   app.listen(PORT, () => {
