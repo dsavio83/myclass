@@ -1,0 +1,5 @@
+What is React?;React is a 'JavaScript library' for building user interfaces. It's maintained by 'Facebook' and the community.
+
+CSS Flexbox;Flexbox is a 'CSS layout module' that makes it easy to design 'flexible responsive layout structure'. You don't need to use 'floats' or 'positioning'.
+
+JavaScript Functions;Functions in JS are 'first-class objects'. They can be 'stored in variables', 'passed as arguments', and 'returned from other functions'.

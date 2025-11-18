@@ -1,0 +1,54 @@
+[
+    {
+        "question": "What is 2+2 equal to?",
+        "answerOptions": [
+            {
+                "text": "3",
+                "isCorrect": false,
+                "rationale": "2 + 2 does not equal 3"
+            },
+            {
+                "text": "4",
+                "isCorrect": true,
+                "rationale": "2 + 2 = 4 is correct"
+            },
+            {
+                "text": "5",
+                "isCorrect": false,
+                "rationale": "2 + 2 does not equal 5"
+            },
+            {
+                "text": "6",
+                "isCorrect": false,
+                "rationale": "2 + 2 does not equal 6"
+            }
+        ],
+        "hint": "Think about basic math addition"
+    },
+    {
+        "question": "Which of the following is a programming language?",
+        "answerOptions": [
+            {
+                "text": "HTML",
+                "isCorrect": false,
+                "rationale": "HTML is a markup language, not a programming language"
+            },
+            {
+                "text": "JavaScript",
+                "isCorrect": true,
+                "rationale": "JavaScript is a programming language"
+            },
+            {
+                "text": "CSS",
+                "isCorrect": false,
+                "rationale": "CSS is a stylesheet language"
+            },
+            {
+                "text": "JSON",
+                "isCorrect": false,
+                "rationale": "JSON is a data format, not a programming language"
+            }
+        ],
+        "hint": "Look for languages that can execute logic and functions"
+    }
+]
