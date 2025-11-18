@@ -35,7 +35,7 @@ async function seedAdminUser() {
         name: 'Admin User',
         email: 'admin@example.com',
         username: 'admin',
-        password: '@123456',
+        password: '@12345678',
         role: 'admin',
         status: 'active',
         isFirstLogin: false
