@@ -49,11 +49,21 @@ const userSchema = new mongoose.Schema({
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) {
-    next();
+  // Always hash password if it exists and looks like it needs hashing
+  if (this.password) {
+    // Check if password looks like it's already hashed (starts with $2a$, $2b$, etc.)
+    if (!this.password.startsWith('$2')) {
+      this.isModified('password', true);
+    }
   }
+  
+  if (!this.isModified('password')) {
+    return next();
+  }
+  
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
 // Compare password method

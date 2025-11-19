@@ -113,11 +113,12 @@ export const loginUser = async (username: string, password: string): Promise<{ u
   return response;
 };
 
-export const updateProfile = async (data: { password?: string; mobileNumber?: string }): Promise<User> => {
-  return await apiRequest<User>('/users/me/profile', {
+export const updateProfile = async (data: { name?: string; email?: string; username?: string; mobileNumber?: string }): Promise<User> => {
+  const response = await apiRequest<{ message: string; user: User }>('/users/me/profile', {
     method: 'PUT',
     body: JSON.stringify(data),
   });
+  return response.user;
 };
 
 // User Management

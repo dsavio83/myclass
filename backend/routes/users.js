@@ -108,6 +108,139 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// @desc    Get user profile
+// @route   GET /api/users/me/profile
+// @access  Private
+const getProfile = async (req, res) => {
+  try {
+    // req.user is set by the protect middleware
+    res.json(req.user);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// @desc    Update user profile
+// @route   PUT /api/users/me/profile
+// @access  Private
+const updateProfile = async (req, res) => {
+  try {
+    console.log('UpdateProfile called with user:', req.user);
+    console.log('UpdateProfile called with body:', req.body);
+    
+    // Use req.user.id instead of req.user._id for consistency
+    const userId = req.user.id || req.user._id;
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      console.log('User not found with ID:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    console.log('Found user:', user.name, user.email);
+
+    const { name, email, username, mobileNumber, password } = req.body;
+
+    // Handle password update with validation
+    if (password !== undefined) {
+      if (!password || password.trim().length < 3) {
+        return res.status(400).json({ message: 'Password must be at least 3 characters long' });
+      }
+      
+      console.log('Before password update - password length:', password.length);
+      console.log('Before password update - password starts with $2:', password.startsWith('$2'));
+      
+      user.password = password.trim();
+      user.markModified('password'); // Force Mongoose to rehash the password
+      
+      console.log('After setting user.password - checking isModified:', user.isModified('password'));
+      console.log('Password updated for user:', user.username);
+    }
+
+    // Only update fields that are provided and not empty
+    if (name !== undefined && name !== null) {
+      user.name = name.trim() || user.name;
+      console.log('Updated name to:', user.name);
+    }
+    
+    if (email !== undefined && email !== null) {
+      user.email = email.trim() || user.email;
+      console.log('Updated email to:', user.email);
+    }
+    
+    if (username !== undefined && username !== null) {
+      user.username = username.trim() || user.username;
+      console.log('Updated username to:', user.username);
+    }
+    
+    if (mobileNumber !== undefined && mobileNumber !== null) {
+      user.mobileNumber = mobileNumber.toString().trim();
+      console.log('Updated mobileNumber to:', user.mobileNumber);
+    }
+
+    // Mark as no longer first login if it was true
+    if (user.isFirstLogin === true) {
+      user.isFirstLogin = false;
+    }
+
+    console.log('User before save:', user.toJSON());
+    const updatedUser = await user.save();
+    console.log('User after save:', updatedUser.toJSON());
+    console.log('Password after save - hash length:', updatedUser.password.length);
+    console.log('Password after save - starts with $2:', updatedUser.password.startsWith('$2'));
+    
+    res.json({
+      message: 'Profile updated successfully',
+      user: updatedUser.toJSON()
+    });
+  } catch (error) {
+    console.error('UpdateProfile error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// @desc    Change user password
+// @route   PUT /api/users/me/password
+// @access  Private
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 3) {
+      return res.status(400).json({ message: 'New password must be at least 3 characters long' });
+    }
+
+    const user = await User.findById(req.user._id);
+    
+    if (user) {
+      // Check if current password is correct
+      if (user.password !== currentPassword) {
+        return res.status(400).json({ message: 'Current password is incorrect' });
+      }
+
+      user.password = newPassword;
+      await user.save();
+      res.json({ message: 'Password changed successfully' });
+    } else {
+      res.status(404).json({ message: 'User not found' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// User profile routes
+router.get('/me/profile', protect, getProfile);
+router.put('/me/profile', protect, updateProfile);
+router.put('/me/password', protect, changePassword);
+
+// Admin user management routes
 router.get('/', protect, admin, getUsers);
 router.post('/', protect, admin, createUser);
 router.put('/:id', protect, admin, updateUser);

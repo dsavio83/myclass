@@ -41,23 +41,45 @@ const updateProfile = async (req, res) => {
     if (user) {
       const { password, mobileNumber } = req.body;
 
-      if (password) {
-        user.password = password;
+      // Handle password update with validation
+      if (password !== undefined) {
+        if (!password || password.trim().length < 3) {
+          return res.status(400).json({ message: 'Password must be at least 3 characters long' });
+        }
+        
+        console.log('Before password update - password length:', password.length);
+        console.log('Before password update - password starts with $2:', password.startsWith('$2'));
+        
+        user.password = password.trim();
+        user.markModified('password'); // Force Mongoose to rehash the password
+        
+        console.log('After setting user.password - checking isModified:', user.isModified('password'));
+        
+        // Save user and get the updated version
+        const updatedUser = await user.save();
+        console.log('Password updated successfully. New password hash length:', updatedUser.password.length);
+        console.log('New password hash starts with $2:', updatedUser.password.startsWith('$2'));
       }
+      
+      // Handle mobile number update
       if (mobileNumber !== undefined) {
-        user.mobileNumber = mobileNumber;
+        user.mobileNumber = mobileNumber.toString().trim();
+        console.log('Mobile number updated for user:', user.username, user.mobileNumber);
       }
+      
+      // Mark as no longer first login
       user.isFirstLogin = false;
 
-      const updatedUser = await user.save();
+      const finalUser = await user.save();
+      console.log('User profile updated successfully:', finalUser.username);
 
-      res.json(updatedUser.toJSON());
+      res.json(finalUser.toJSON());
     } else {
       res.status(404).json({ message: 'User not found' });
     }
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('UpdateProfile error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
