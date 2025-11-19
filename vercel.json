@@ -2,15 +2,12 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
+  "framework": "vite",
+  "functions": {
+    "api/index.js": {
+      "runtime": "nodejs20.x"
     }
-  ],
+  },
   "routes": [
     {
       "src": "/api/(.*)",
@@ -22,12 +19,11 @@
     },
     {
       "src": "/assets/(.*)",
-      "headers": {
-        "cache-control": "public, max-age=31536000, immutable"
-      }
+      "dest": "/assets/$1"
     },
     {
-      "handle": "filesystem"
+      "src": "\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$",
+      "dest": "/$0"
     },
     {
       "src": "/(.*)",
@@ -58,6 +54,10 @@
         {
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
         }
       ]
     }
