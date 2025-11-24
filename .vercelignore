@@ -1,4 +1,5 @@
 # Exclude frontend files from serverless function bundle
+# NOTE: Keep root package.json as Vercel needs it for building
 *.tsx
 *.ts
 *.jsx
@@ -16,7 +17,7 @@ App.tsx
 index.html
 index.tsx
 vite.config.ts
-package.json
+# Frontend package.json should NOT be excluded as Vercel needs it for building
 tsconfig.json
 types.ts
 constants.tsx
