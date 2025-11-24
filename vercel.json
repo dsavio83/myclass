@@ -1,7 +1,7 @@
 {
     "framework": "vite",
     "installCommand": "npm install",
-    "buildCommand": "node build.js",
+    "buildCommand": "npm run build",
     "outputDirectory": "dist",
     "functions": {
         "api/index.js": {
