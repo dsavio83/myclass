@@ -1,0 +1,24 @@
+{
+    "name": "my-class-content-browser-api",
+    "version": "1.0.0",
+    "description": "Backend API for My Class Content Browser",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "nodemon index.js",
+        "build": "echo 'No build step required'",
+        "vercel-build": "echo 'No build step required'"
+    },
+    "dependencies": {
+        "axios": "^1.13.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.0.3",
+        "express": "^4.18.2",
+        "form-data": "^4.0.5",
+        "mongoose": "^7.0.3",
+        "multer": "^1.4.5-lts.1"
+    },
+    "devDependencies": {
+        "nodemon": "^2.0.22"
+    }
+}
