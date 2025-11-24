@@ -29,3 +29,5 @@ test-*.html
 test-*.txt
 test-*.pdf
 *.md
+build.js
+diagnose.js
