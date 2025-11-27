@@ -45,7 +45,7 @@ export interface Lesson {
   name: string;
 }
 
-export type ResourceType = 'book' | 'flashcard' | 'notes' | 'qa' | 'activity' | 'extra' | 'video' | 'audio' | 'worksheet' | 'questionPaper' | 'quiz';
+export type ResourceType = 'book' | 'flashcard' | 'notes' | 'qa' | 'activity' | 'extra' | 'video' | 'audio' | 'worksheet' | 'questionPaper' | 'quiz' | 'slide';
 
 export type QuestionPaperCategory = 'Monthly' | 'Term Exam' | 'Model Exam' | 'SSLC Exam' | 'Custom';
 

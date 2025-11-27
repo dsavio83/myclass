@@ -146,7 +146,9 @@ const UploadForm: React.FC<{ lessonId: string; onUpload: () => void; onExpand: (
                     if (parts.length >= 2) {
                         const fileName = parts[parts.length - 1];
                         const hierarchyPath = parts.join('/');
-                        const fullVirtualPath = `${hierarchyPath}/Book/${fileName}.pdf`;
+                        const cleanSubjectNameLower = parts[1].toLowerCase().replace(/\s+/g, '');
+                        const cleanUnitNameFormatted = parts[2].replace(/\s+/g, '');
+                        const fullVirtualPath = `../uploads/${parts[0]}/${cleanSubjectNameLower}/${cleanUnitNameFormatted}/Books/${fileName}.pdf`;
 
                         //console.log('Fast book path from breadcrumbs:', fullVirtualPath);
                         setAutoTitle(fileName);
@@ -217,7 +219,9 @@ const UploadForm: React.FC<{ lessonId: string; onUpload: () => void; onExpand: (
                 // Generate final path
                 if (foundLevel && breadcrumbParts.length > 0) {
                     const hierarchyPath = breadcrumbParts.join('/');
-                    const fullVirtualPath = `${hierarchyPath}/Book/${fileName}.pdf`;
+                    const cleanSubjectNameLower = breadcrumbParts[1].toLowerCase().replace(/\s+/g, '');
+                    const cleanUnitNameFormatted = breadcrumbParts[2].replace(/\s+/g, '');
+                    const fullVirtualPath = `../uploads/${breadcrumbParts[0]}/${cleanSubjectNameLower}/${cleanUnitNameFormatted}/Books/${fileName}.pdf`;
 
                     //console.log('Fast book path from search:', fullVirtualPath);
                     setAutoTitle(fileName);
@@ -226,7 +230,7 @@ const UploadForm: React.FC<{ lessonId: string; onUpload: () => void; onExpand: (
                     // Quick fallback
                     //console.log('Quick book fallback for:', lessonId);
                     const fallbackTitle = `Book_${lessonId.slice(-4)}`;
-                    const fallbackPath = `Class/Book/${fallbackTitle}.pdf`;
+                    const fallbackPath = `../uploads/Class/default/Unit/Books/${fallbackTitle}.pdf`;
 
                     setAutoTitle(fallbackTitle);
                     setFolderPath(fallbackPath);
@@ -244,7 +248,7 @@ const UploadForm: React.FC<{ lessonId: string; onUpload: () => void; onExpand: (
             fetchTitleAndPath();
         } else {
             setAutoTitle('Select a lesson/unit first');
-            setFolderPath('Books/Pending Selection');
+            setFolderPath('../uploads/Class/Pending/Unit/Books/Pending Selection.pdf');
         }
     }, [lessonId]);
 

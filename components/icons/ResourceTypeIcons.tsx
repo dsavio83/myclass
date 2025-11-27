@@ -43,3 +43,14 @@ export const QuizIcon: React.FC<{ className?: string }> = ({ className }) => (
     <path d="M12 7.5V7"></path>
   </svg>
 );
+
+export const SlideIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3" y="4" width="18" height="12" rx="2" ry="2"></rect>
+    <line x1="7" y1="8" x2="17" y2="8"></line>
+    <line x1="7" y1="12" x2="17" y2="12"></line>
+    <circle cx="9" cy="10" r="1" fill="currentColor"></circle>
+    <circle cx="13" cy="10" r="1" fill="currentColor"></circle>
+    <path d="M8 18l-2 3h12l-2-3"></path>
+  </svg>
+);

@@ -13,6 +13,7 @@ const allManagementLinks = [
     { id: 'course-structure', label: 'Course Structure Management', roles: ['admin'] },
     { id: 'quiz-configuration', label: 'Quiz Configuration', roles: ['admin', 'teacher'] },
     { id: 'user-management', label: 'User Management', roles: ['admin'] },
+    { id: 'collections-management', label: 'Database Management', roles: ['admin'] },
     { id: 'reports', label: 'Reports', roles: ['admin', 'teacher'] },
 ];
 

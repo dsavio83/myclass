@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Session, AdminState, TeacherState, FontSize } from '../types';
+import { usePersistentNavigation } from '../hooks/usePersistentNavigation';
 
 interface SessionContextType {
     session: Session;
@@ -9,6 +10,15 @@ interface SessionContextType {
     updateAdminState: (updates: Partial<AdminState>) => void;
     updateTeacherState: (updates: Partial<TeacherState>) => void;
     setFontSize: (size: FontSize) => void;
+    clearNavigationState: () => void;
+    isNavigationRestored: boolean;
+    getCurrentNavigationState: () => {
+        adminState: AdminState;
+        teacherState: TeacherState;
+        lastUpdated: number;
+        isRestored: boolean;
+    };
+    forceSaveNavigation: () => void;
 }
 
 const defaultAdminState: AdminState = {
@@ -29,11 +39,11 @@ const defaultSession: Session = {
     fontSize: 12 // Default to 12px
 };
 
+const LOCAL_STORAGE_KEY = 'learningPlatformSession';
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
-const LOCAL_STORAGE_KEY = 'learningPlatformSession';
-
 export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    // Initialize session from localStorage (only authentication data)
     const [session, setSession] = useState<Session>(() => {
         try {
             const savedSession = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -41,11 +51,10 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 const parsed = JSON.parse(savedSession);
                 return {
                     ...defaultSession,
-                    ...parsed,
-                    adminState: { ...defaultAdminState, ...parsed.adminState },
-                    teacherState: { ...defaultTeacherState, ...parsed.teacherState },
+                    user: parsed.user || null,
+                    token: parsed.token || null,
                     // Ensure fontSize is a number, fallback to 12 if invalid or old string format
-                    fontSize: typeof parsed.fontSize === 'number' ? parsed.fontSize : 12 
+                    fontSize: typeof parsed.fontSize === 'number' ? parsed.fontSize : 12
                 };
             }
         } catch (error) {
@@ -55,48 +64,110 @@ export const SessionProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return defaultSession;
     });
 
+    // Persistent navigation state
+    const {
+        adminState: persistedAdminState,
+        teacherState: persistedTeacherState,
+        updateAdminState: updatePersistedAdminState,
+        updateTeacherState: updatePersistedTeacherState,
+        clearNavigationState: clearPersistedNavigationState,
+        isNavigationRestored,
+        getCurrentState,
+        forceSave
+    } = usePersistentNavigation();
+
+    // Combine session and navigation state - apply navigation state immediately when available
+    const currentSession: Session = useMemo(() => {
+        console.log('[SessionContext] Combining session and navigation state:', {
+            session: { user: session.user, token: session.token, fontSize: session.fontSize },
+            navigation: { adminState: persistedAdminState, teacherState: persistedTeacherState }
+        });
+        
+        return {
+            ...session,
+            adminState: persistedAdminState,
+            teacherState: persistedTeacherState
+        };
+    }, [session, persistedAdminState, persistedTeacherState]);
+
+    // Save session (authentication data only) to localStorage
     useEffect(() => {
         try {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(session));
+            const sessionToSave = {
+                user: currentSession.user,
+                token: currentSession.token,
+                fontSize: currentSession.fontSize
+            };
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sessionToSave));
         } catch (error) {
             console.error("Failed to save session to localStorage", error);
         }
-    }, [session]);
+    }, [currentSession.user, currentSession.token, currentSession.fontSize]);
 
     const login = useCallback((sessionData: { user: User, token: string }) => {
-        setSession(prev => ({ ...prev, user: sessionData.user, token: sessionData.token }));
+        setSession(prev => ({ 
+            ...prev, 
+            user: sessionData.user, 
+            token: sessionData.token 
+        }));
     }, []);
 
     const logout = useCallback(() => {
+        // Clear authentication session
         setSession(defaultSession);
         localStorage.removeItem(LOCAL_STORAGE_KEY);
-    }, []);
+        
+        // Clear navigation state
+        clearPersistedNavigationState();
+    }, [clearPersistedNavigationState]);
 
     const updateProfile = useCallback((updatedUser: User) => {
         setSession(prev => prev.user ? { ...prev, user: updatedUser } : prev);
     }, []);
 
     const updateAdminState = useCallback((updates: Partial<AdminState>) => {
-        setSession(prev => ({ ...prev, adminState: { ...prev.adminState, ...updates } }));
-    }, []);
+        // Update persistent navigation state
+        updatePersistedAdminState(updates);
+    }, [updatePersistedAdminState]);
 
     const updateTeacherState = useCallback((updates: Partial<TeacherState>) => {
-        setSession(prev => ({ ...prev, teacherState: { ...prev.teacherState, ...updates } }));
-    }, []);
+        // Update persistent navigation state
+        updatePersistedTeacherState(updates);
+    }, [updatePersistedTeacherState]);
 
     const setFontSize = useCallback((size: FontSize) => {
         setSession(prev => ({ ...prev, fontSize: size }));
     }, []);
 
+    const clearNavigationState = useCallback(() => {
+        clearPersistedNavigationState();
+    }, [clearPersistedNavigationState]);
+
     const contextValue = useMemo(() => ({
-        session,
+        session: currentSession,
         login,
         logout,
         updateProfile,
         updateAdminState,
         updateTeacherState,
-        setFontSize
-    }), [session, login, logout, updateProfile, updateAdminState, updateTeacherState, setFontSize]);
+        setFontSize,
+        clearNavigationState,
+        isNavigationRestored,
+        getCurrentNavigationState: getCurrentState,
+        forceSaveNavigation: forceSave
+    }), [
+        currentSession, 
+        login, 
+        logout, 
+        updateProfile, 
+        updateAdminState, 
+        updateTeacherState, 
+        setFontSize,
+        clearNavigationState,
+        isNavigationRestored,
+        getCurrentState,
+        forceSave
+    ]);
 
     return (
         <SessionContext.Provider value={contextValue}>

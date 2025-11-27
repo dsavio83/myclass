@@ -13,23 +13,134 @@ interface AudioViewProps {
 }
 
 const SavedAudioViewer: React.FC<{ content: Content; onRemove: () => void; isAdmin: boolean }> = ({ content, onRemove, isAdmin }) => {
-    // Determine the audio source - use the content file serving endpoint
+    const [audioError, setAudioError] = useState<string | null>(null);
+    const [audioLoading, setAudioLoading] = useState(true);
+    const [audioSrc, setAudioSrc] = useState<string>('');
+
+    // Enhanced audio source detection with comprehensive debugging
     const getAudioSrc = () => {
-        if (content.filePath && content.body === '') {
-            // Local file upload - use content-specific file serving endpoint
-            return `/api/content/${content._id}/file`;
-        } else if (content.body && content.body.startsWith('http')) {
-            // External URL
-            return content.body;
-        } else if (content.body && content.body.startsWith('data:audio/')) {
-            // Base64 audio data
-            return content.body;
-        } else if (content.body && content.body.trim() !== '') {
-            // Other body content (external URL)
+        console.log('[AudioView] Getting audio source for content:', {
+            id: content._id,
+            type: content.type,
+            title: content.title,
+            hasFilePath: !!content.filePath,
+            filePath: content.filePath,
+            hasBody: !!content.body,
+            bodyLength: content.body?.length || 0,
+            bodyPreview: content.body?.substring(0, 100) + (content.body?.length > 100 ? '...' : ''),
+            bodyStartsWith: content.body?.substring(0, 50)
+        });
+
+        // Priority 1: Local file upload with valid filePath (HIGHEST PRIORITY)
+        if (content.filePath && content.filePath.trim() !== '') {
+            const fileSrc = `/api/content/${content._id}/file`;
+            console.log('[AudioView] Using uploaded file:', fileSrc);
+            return fileSrc;
+        }
+        
+        // Priority 2: External URL in body (must be valid URL and not JSON)
+        if (content.body && content.body.trim() !== '') {
+            // Check if it's a valid URL
+            if (content.body.startsWith('http://') || content.body.startsWith('https://')) {
+                console.log('[AudioView] Using external URL:', content.body);
+                return content.body;
+            }
+            
+            // Check if it's base64 audio data
+            if (content.body.startsWith('data:audio/')) {
+                console.log('[AudioView] Using base64 audio data');
+                return content.body;
+            }
+            
+            // If body contains JSON metadata (common issue), don't use it as source
+            try {
+                const parsed = JSON.parse(content.body);
+                if (parsed && typeof parsed === 'object') {
+                    console.log('[AudioView] Body contains JSON metadata, not using as audio source:', parsed);
+                    return '';
+                }
+            } catch (e) {
+                // Not JSON, could be a plain text URL or other content
+                console.log('[AudioView] Body is not JSON, checking if it might be a direct URL');
+            }
+        }
+        
+        // Priority 3: Base64 audio data
+        if (content.body && content.body.startsWith('data:audio/')) {
+            console.log('[AudioView] Using base64 audio data');
             return content.body;
         }
-        // Fallback: return empty string if no valid source
+        
+        // No valid source found
+        console.warn('[AudioView] No valid audio source found for content:', content._id);
         return '';
+    };
+
+    // Update audio source when content changes
+    useEffect(() => {
+        const src = getAudioSrc();
+        setAudioSrc(src);
+        setAudioLoading(src ? true : false);
+        setAudioError(null);
+    }, [content]);
+
+    const handleAudioLoad = () => {
+        console.log('[AudioView] Audio loading started');
+        setAudioLoading(true);
+        setAudioError(null);
+    };
+
+    const handleAudioCanPlay = () => {
+        console.log('[AudioView] Audio can play');
+        setAudioLoading(false);
+        setAudioError(null);
+    };
+
+    const handleAudioError = (e: React.SyntheticEvent<HTMLAudioElement, Event>) => {
+        const error = e.currentTarget.error;
+        const audioElement = e.currentTarget;
+        let errorMessage = 'Unknown audio error';
+        
+        console.error('[AudioView] Audio playback error details:', {
+            error: error,
+            src: audioSrc,
+            currentSrc: audioElement.currentSrc,
+            networkState: audioElement.networkState,
+            readyState: audioElement.readyState,
+            buffered: audioElement.buffered,
+            duration: audioElement.duration,
+            errorCode: error?.code,
+            errorMessage: error?.message
+        });
+        
+        if (error) {
+            switch (error.code) {
+                case MediaError.MEDIA_ERR_ABORTED:
+                    errorMessage = 'Audio loading was aborted';
+                    break;
+                case MediaError.MEDIA_ERR_NETWORK:
+                    errorMessage = 'Network error while loading audio. Please check your internet connection.';
+                    break;
+                case MediaError.MEDIA_ERR_DECODE:
+                    errorMessage = 'Audio file is corrupted or unsupported format. Please try converting to MP3 or WAV.';
+                    break;
+                case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                    errorMessage = 'Audio format not supported or file not found. Supported formats: MP3, WAV, M4A, OGG, AAC, FLAC.';
+                    break;
+                default:
+                    errorMessage = `Audio error: ${error.message}`;
+            }
+        }
+        
+        // Additional debugging for specific issues
+        if (audioSrc.includes('/api/content/') && !audioSrc.endsWith('/file')) {
+            errorMessage += ' (Invalid API endpoint format)';
+        }
+        
+        console.error('[AudioView] Final error message:', errorMessage);
+        
+        setAudioLoading(false);
+        setAudioError(errorMessage);
     };
 
 
@@ -46,9 +157,85 @@ const SavedAudioViewer: React.FC<{ content: Content; onRemove: () => void; isAdm
             <h2 className="text-xl font-semibold mb-4 pr-12 truncate">{content.title}</h2>
             
             <div className="w-full">
-                <audio controls className="w-full" src={getAudioSrc()}>
-                    Your browser does not support the audio element.
-                </audio>
+                {/* Loading state */}
+                {audioLoading && (
+                    <div className="flex items-center justify-center py-4">
+                        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Loading audio...</span>
+                    </div>
+                )}
+                
+                {/* Audio player with enhanced error handling */}
+                {audioSrc && (
+                    <audio 
+                        controls 
+                        className="w-full" 
+                        src={audioSrc}
+                        onLoadStart={handleAudioLoad}
+                        onCanPlay={handleAudioCanPlay}
+                        onError={handleAudioError}
+                        style={{ display: audioLoading ? 'none' : 'block' }}
+                    >
+                        Your browser does not support the audio element.
+                    </audio>
+                )}
+                
+                {/* Error state */}
+                {audioError && (
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Audio Playback Error</h3>
+                                <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                                    <p>{audioError}</p>
+                                    <p className="mt-1 text-xs">
+                                        <strong>Debug Info:</strong> Source: {audioSrc || 'None'} | File Path: {content.filePath || 'None'}
+                                    </p>
+                                </div>
+                                <div className="mt-3">
+                                    <button
+                                        onClick={() => {
+                                            setAudioError(null);
+                                            setAudioLoading(true);
+                                            const src = getAudioSrc();
+                                            setAudioSrc(src);
+                                        }}
+                                        className="text-xs bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 px-2 py-1 rounded hover:bg-red-200 dark:hover:bg-red-700"
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
+                {/* No source state */}
+                {!audioSrc && !audioError && !audioLoading && (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">No Audio Source</h3>
+                                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                                    <p>No valid audio source found for this content.</p>
+                                    <p className="mt-1 text-xs">
+                                        <strong>Content Info:</strong> ID: {content._id} | Type: {content.type} | File Path: {content.filePath || 'None'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -233,7 +420,11 @@ const AddAudioForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                     body: url, 
                     lessonId, 
                     type: 'audio',
-                    metadata: { category: 'External', subCategory: 'External Link' } as any 
+                    metadata: { 
+                        category: 'External', 
+                        subCategory: 'External Link',
+                        audioUrl: url
+                    } as any 
                 });
             }
             
@@ -273,7 +464,7 @@ const AddAudioForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                 {activeTab === 'upload' && (
                     <div>
                         <label htmlFor="audioFile" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Audio File</label>
-                        <div className="mt-1 flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md"><div className="space-y-1 text-center"><UploadCloudIcon className="mx-auto h-12 w-12 text-gray-400"/><div className="flex text-sm text-gray-600 dark:text-gray-400"><label htmlFor="audioFile" className="relative cursor-pointer bg-transparent rounded-md font-medium text-blue-600 hover:text-blue-500"><span>{file ? 'Change file' : 'Upload an audio file'}</span><input id="audioFile" name="audioFile" type="file" className="sr-only" onChange={handleFileChange} accept="audio/*" /></label></div><p className="text-xs text-gray-500 dark:text-gray-500">{file ? file.name : 'MP3, WAV, etc.'}</p></div></div>
+                        <div className="mt-1 flex items-center justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md"><div className="space-y-1 text-center"><UploadCloudIcon className="mx-auto h-12 w-12 text-gray-400"/><div className="flex text-sm text-gray-600 dark:text-gray-400"><label htmlFor="audioFile" className="relative cursor-pointer bg-transparent rounded-md font-medium text-blue-600 hover:text-blue-500"><span>{file ? 'Change file' : 'Upload an audio file'}</span><input id="audioFile" name="audioFile" type="file" className="sr-only" onChange={handleFileChange} accept="audio/*,.m4a,.mp3,.wav,.ogg,.aac,.flac,.opus,.webm,.3gp,.3ga,.wma,.aiff,.au,.gsm,.ra,.rm" /></label></div><p className="text-xs text-gray-500 dark:text-gray-500">{file ? file.name : 'MP3, WAV, M4A, OGG, AAC, FLAC, etc.'}</p></div></div>
                     </div>
                 )}
                 {activeTab === 'url' && (
@@ -290,13 +481,13 @@ const AddAudioForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                 )}
                 {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
                 <div className="flex gap-4">
-                    <button type="button" onClick={onCancel} className="flex items-center justify-center w-10 h-10 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors sm:w-full sm:px-4 sm:h-auto sm:justify-start">
+                    <button type="button" onClick={onCancel} className="flex items-center items-center justify-center p-2 w-10 h-10 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors sm:w-full sm:px-4 sm:h-auto sm:justify-start">
                         <svg className="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                         <span className="hidden sm:inline">Cancel</span>
                     </button>
-                    <button type="submit" disabled={isSaving} className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors sm:w-full sm:px-4 sm:h-auto sm:justify-start">
+                    <button type="submit" disabled={isSaving} className="flex items-center justify-center p-2 w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors sm:w-full sm:px-4 sm:h-auto sm:justify-start">
                         {isSaving ? (
                             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin sm:mr-2" />
                         ) : (
@@ -349,7 +540,7 @@ export const AudioView: React.FC<AudioViewProps> = ({ lessonId, user }) => {
                     <h1 className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white">Audio</h1>
                 </div>
                 {canEdit && !showAddForm && (
-                    <button onClick={() => setShowAddForm(true)} className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors sm:px-4 sm:w-auto sm:h-auto" title="Add New Audio">
+                    <button onClick={() => setShowAddForm(true)} className="flex items-center justify-center p-2.5 w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors sm:px-4 sm:w-auto sm:h-auto" title="Add New Audio">
                         <PlusIcon className="w-5 h-5" />
                         <span className="hidden sm:inline sm:ml-2">Add New</span>
                     </button>

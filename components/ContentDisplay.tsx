@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { ResourceType, User } from '../types';
 import { BookView } from './content_views/BookView';
+import { SlideView } from './content_views/SlideView';
 import { WorksheetView } from './content_views/WorksheetView';
 import { NotesView } from './content_views/NotesView';
 import { QAView } from './content_views/QAView';
@@ -60,6 +61,8 @@ export const ContentDisplay: React.FC<ContentDisplayProps> = ({ lessonId, select
             return <QuizView lessonId={lessonId} user={user} />;
         case 'questionPaper':
             return <QuestionPaperView lessonId={lessonId} user={user} />;
+        case 'slide':
+            return <SlideView lessonId={lessonId} user={user} />;
         case 'activity':
         case 'extra':
             return <GenericContentView lessonId={lessonId} user={user} resourceType={selectedResourceType} />;

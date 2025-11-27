@@ -7,6 +7,7 @@ import { ResourceType } from '../types';
 import { ContentDisplay } from './ContentDisplay';
 import { useSession } from '../context/SessionContext';
 import { TeacherState } from '../types';
+import { useScrollPersistence } from '../hooks/useScrollPersistence';
 
 export const TeacherView: React.FC = () => {
     const { session, logout, updateTeacherState } = useSession();
@@ -14,32 +15,32 @@ export const TeacherView: React.FC = () => {
 
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isProfilePageOpen, setIsProfilePageOpen] = useState(false);
-    const mainContentRef = useRef<HTMLElement>(null);
+
+    // Debug logging for navigation state
+    useEffect(() => {
+        console.log('[TeacherView] Navigation state changed:', {
+            classId: state.classId,
+            subjectId: state.subjectId,
+            unitId: state.unitId,
+            subUnitId: state.subUnitId,
+            lessonId: state.lessonId,
+            selectedResourceType: state.selectedResourceType
+        });
+    }, [state]);
 
     // Check if device is mobile
     const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
-    // Restore scroll position when the view changes
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (mainContentRef.current) {
-                mainContentRef.current.scrollTop = state.scrollPosition;
-            }
-        }, 0);
-        return () => clearTimeout(timer);
-    }, [state.classId, state.subjectId, state.unitId, state.subUnitId, state.lessonId, state.selectedResourceType]);
+    // Use scroll persistence hook
+    const { scrollElementRef, handleScroll } = useScrollPersistence(
+        state.scrollPosition,
+        (position) => updateTeacherState({ scrollPosition: position }),
+        [state.classId, state.subjectId, state.unitId, state.subUnitId, state.lessonId, state.selectedResourceType]
+    );
 
-    const handleScroll = useCallback(() => {
-        if (mainContentRef.current) {
-            updateTeacherState({ scrollPosition: mainContentRef.current.scrollTop });
-        }
-    }, [updateTeacherState]);
-  
+    // Reset scroll position when navigation state changes (but not scroll itself)
     const updateStateAndResetScroll = useCallback((updates: Partial<TeacherState>) => {
         updateTeacherState({ ...updates, scrollPosition: 0 });
-        if (mainContentRef.current) {
-            mainContentRef.current.scrollTop = 0;
-        }
     }, [updateTeacherState]);
 
     const handleClassChange = useCallback((id: string | null) => {
@@ -90,7 +91,7 @@ export const TeacherView: React.FC = () => {
                     isOpen={sidebarOpen}
                 />
                 <main 
-                    ref={mainContentRef}
+                    ref={scrollElementRef}
                     onScroll={handleScroll}
                     className="flex-1 flex flex-col bg-gray-100 dark:bg-gray-800 overflow-y-auto relative transition-all duration-300 border-l border-gray-200 dark:border-gray-700 h-full">
                     {isProfilePageOpen ? (

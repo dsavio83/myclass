@@ -20,14 +20,9 @@ const ExitFullscreenIcon: React.FC<{ className?: string }> = ({ className }) => 
     <svg className={className} stroke="currentColor" fill="none" strokeWidth="2" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round" height="1em" width="1em" xmlns="http://www.w3.org/2000/svg"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
 );
 
-import * as pdfjsLib from 'pdfjs-dist';
-
 // Configure worker - using local worker file with CDN fallback
 const CDN_WORKER_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 const LOCAL_WORKER_URL = '/pdf.worker.min.js';
-
-// Set up worker configuration with fallbacks
-pdfjsLib.GlobalWorkerOptions.workerSrc = LOCAL_WORKER_URL;
 
 interface PdfViewerProps {
     url: string; // The data: or http: URL of the PDF
@@ -44,6 +39,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, initialScale = 1.0 })
     const [error, setError] = useState<string | null>(null);
     const [isMobile, setIsMobile] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [pdfjsLib, setPdfjsLib] = useState<any>(null);
+    const [isPdfLoading, setIsPdfLoading] = useState(true);
 
     // Refs
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -68,6 +65,25 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, initialScale = 1.0 })
         const defaultScale = isMobile ? 0.65 : initialScale;
         setScale(defaultScale);
     }, [isMobile, initialScale]);
+
+    // Dynamically load pdfjs library
+    useEffect(() => {
+        const loadPdfJs = async () => {
+            try {
+                const pdfjs = await import('pdfjs-dist');
+                // Configure worker
+                pdfjs.GlobalWorkerOptions.workerSrc = LOCAL_WORKER_URL;
+                setPdfjsLib(pdfjs);
+                setIsPdfLoading(false);
+            } catch (error) {
+                console.error('Failed to load PDF.js library:', error);
+                setError('Failed to load PDF.js library');
+                setIsPdfLoading(false);
+            }
+        };
+        
+        loadPdfJs();
+    }, []);
 
     const renderPage = useCallback(async (num: number, currentPdf: any, retryCount = 0) => {
         if (!currentPdf || !canvasRef.current || !containerRef.current || !mountedRef.current) return;
@@ -136,13 +152,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, initialScale = 1.0 })
     }, [scale]);
 
     useEffect(() => {
-        if (!url) return;
-
-        if (typeof pdfjsLib === 'undefined') {
-            setError("PDF.js library is not loaded.");
-            setIsLoading(false);
-            return;
-        }
+        if (!url || !pdfjsLib) return;
 
         // Set component as mounted
         mountedRef.current = true;
@@ -249,7 +259,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, initialScale = 1.0 })
             }
             setPdfDoc(null);
         };
-    }, [url]);
+    }, [url, pdfjsLib]);
 
     useEffect(() => {
         if (pdfDoc && mountedRef.current) {
@@ -353,7 +363,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, initialScale = 1.0 })
 
             {/* Scrollable Content Area */}
             <div className="flex-1 overflow-auto flex items-start justify-center bg-gray-500/20 p-4 relative w-full">
-                {isLoading && (
+                {(isLoading || isPdfLoading) && (
                     <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-black/50 z-20">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                     </div>

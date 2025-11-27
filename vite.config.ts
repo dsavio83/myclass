@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       proxy: {
         '/api': {
-          target: 'http://localhost:3002',
+          target: 'http://localhost:5000',
           changeOrigin: true,
         },
       },
@@ -23,6 +23,26 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: 'dist',
       emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            // React and React DOM
+            'react-vendor': ['react', 'react-dom'],
+            // PDF.js library
+            'pdfjs': ['pdfjs-dist'],
+            // API and utilities (only browser-compatible packages)
+            'api-vendor': ['axios', 'form-data'],
+            // Node.js built-ins (exclude from bundle)
+            'node-builtins': ['path']
+          },
+          // Configure chunk file names for better caching
+          chunkFileNames: 'assets/[name]-[hash].js',
+          entryFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash].[ext]'
+        }
+      },
+      // Increase warning limit for chunks
+      chunkSizeWarningLimit: 1000,
     },
     resolve: {
       alias: {

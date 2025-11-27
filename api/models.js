@@ -36,11 +36,19 @@ const lessonSchema = new mongoose.Schema({
     subUnitId: { type: mongoose.Schema.Types.ObjectId, ref: 'SubUnit', required: true }
 }, { timestamps: true });
 
+const webmasterSchema = new mongoose.Schema({
+    username: { type: String, required: true, unique: true },
+    password: { type: String, required: true }
+}, { timestamps: true });
+
 const contentSchema = new mongoose.Schema({
     lessonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lesson', required: true },
     type: { type: String, required: true },
     title: { type: String, required: true },
     body: { type: String }, // Text content or JSON
+    filePath: { type: String }, // Path to uploaded file
+    originalFileName: { type: String }, // Original filename
+    fileSize: { type: Number }, // File size in bytes
     viewCount: { type: Number, default: 0 },
     metadata: { type: mongoose.Schema.Types.Mixed }
 }, { timestamps: true });
@@ -56,5 +64,6 @@ module.exports = {
     Unit: mongoose.model('Unit', unitSchema),
     SubUnit: mongoose.model('SubUnit', subUnitSchema),
     Lesson: mongoose.model('Lesson', lessonSchema),
-    Content: mongoose.model('Content', contentSchema)
+    Content: mongoose.model('Content', contentSchema),
+    Webmaster: mongoose.model('Webmaster', webmasterSchema)
 };

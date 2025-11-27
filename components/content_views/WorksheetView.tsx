@@ -149,7 +149,9 @@ const UploadForm: React.FC<{ lessonId: string; onUpload: () => void; onExpand: (
                     if (parts.length >= 2) {
                         const fileName = parts[parts.length - 1];
                         const hierarchyPath = parts.join('/');
-                        const fullVirtualPath = `${hierarchyPath}/Worksheet/${fileName}.pdf`;
+                        const cleanSubjectNameLower = parts[1].toLowerCase().replace(/\s+/g, '');
+                        const cleanUnitNameFormatted = parts[2].replace(/\s+/g, '');
+                        const fullVirtualPath = `../uploads/${parts[0]}/${cleanSubjectNameLower}/${cleanUnitNameFormatted}/Worksheets/${fileName}.pdf`;
                         
                         console.log('Fast worksheet path from breadcrumbs:', fullVirtualPath);
                         setTitle(fileName);
@@ -218,7 +220,10 @@ const UploadForm: React.FC<{ lessonId: string; onUpload: () => void; onExpand: (
                 
                 // Generate final title
                 if (foundLevel && breadcrumbParts.length > 0) {
-                    console.log('Fast worksheet path from search:', breadcrumbParts.join('/'));
+                    const cleanSubjectNameLower = breadcrumbParts[1].toLowerCase().replace(/\s+/g, '');
+                    const cleanUnitNameFormatted = breadcrumbParts[2].replace(/\s+/g, '');
+                    const fullVirtualPath = `../uploads/${breadcrumbParts[0]}/${cleanSubjectNameLower}/${cleanUnitNameFormatted}/Worksheets/${fileName}.pdf`;
+                    console.log('Fast worksheet path from search:', fullVirtualPath);
                     setTitle(fileName);
                 } else {
                     // Quick fallback
@@ -468,16 +473,7 @@ export const WorksheetView: React.FC<WorksheetViewProps> = ({ lessonId, user }) 
                     <div className="text-center py-20 bg-white dark:bg-gray-800/50 rounded-lg">
                         <WorksheetIcon className="w-16 h-16 mx-auto text-gray-300 dark:text-gray-600" />
                         <p className="mt-4 text-gray-500">No worksheets available for this chapter.</p>
-                        {canEdit && !showUploadForm && (
-                            <button 
-                                onClick={() => setShowUploadForm(true)}
-                                className="mt-4 px-3 py-2 sm:px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                title="Upload First Worksheet"
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                                <span className="hidden sm:inline">Upload First Worksheet</span>
-                            </button>
-                        )}
+                        
                     </div>
                 )}
             </div>

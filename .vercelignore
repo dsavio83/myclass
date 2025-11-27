@@ -14,9 +14,7 @@ context/
 hooks/
 services/
 App.tsx
-index.html
 index.tsx
-vite.config.ts
 # Frontend package.json should NOT be excluded as Vercel needs it for building
 tsconfig.json
 types.ts

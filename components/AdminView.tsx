@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { CascadeSelectors } from './CascadeSelectors';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
@@ -9,10 +9,12 @@ import { UserManagement } from './UserManagement';
 import { QuizConfiguration } from './QuizConfiguration';
 import { ReportsPage } from './ReportsPage';
 import { ProfilePage } from './ProfilePage';
+import { AdminCollectionsPanel } from './AdminCollectionsPanel';
 import { ResourceType } from '../types';
 import { ContentDisplay } from './ContentDisplay';
 import { useSession } from '../context/SessionContext';
 import { AdminState } from '../types';
+import { useScrollPersistence } from '../hooks/useScrollPersistence';
 
 export const AdminView: React.FC = () => {
     const { session, logout, updateAdminState } = useSession();
@@ -41,29 +43,17 @@ export const AdminView: React.FC = () => {
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, []);
-    const mainContentRef = useRef<HTMLElement>(null);
-    
-    // Restore scroll position when the view changes
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            if (mainContentRef.current) {
-                mainContentRef.current.scrollTop = state.scrollPosition;
-            }
-        }, 0);
-        return () => clearTimeout(timer);
-    }, [state.classId, state.subjectId, state.unitId, state.subUnitId, state.lessonId, state.selectedResourceType, state.activePage]);
 
-    const handleScroll = useCallback(() => {
-        if (mainContentRef.current) {
-            updateAdminState({ scrollPosition: mainContentRef.current.scrollTop });
-        }
-    }, [updateAdminState]);
+    // Use scroll persistence hook
+    const { scrollElementRef, handleScroll } = useScrollPersistence(
+        state.scrollPosition,
+        (position) => updateAdminState({ scrollPosition: position }),
+        [state.classId, state.subjectId, state.unitId, state.subUnitId, state.lessonId, state.selectedResourceType, state.activePage]
+    );
 
+    // Reset scroll position when navigation state changes (but not scroll itself)
     const updateStateAndResetScroll = useCallback((updates: Partial<AdminState>) => {
         updateAdminState({ ...updates, scrollPosition: 0 });
-        if (mainContentRef.current) {
-            mainContentRef.current.scrollTop = 0;
-        }
     }, [updateAdminState]);
 
     const handleClassChange = useCallback((id: string | null) => {
@@ -113,7 +103,7 @@ export const AdminView: React.FC = () => {
 
     const handleSelectResourceType = useCallback((resourceType: ResourceType) => {
         updateStateAndResetScroll({ selectedResourceType: resourceType });
-        // Auto-hide sidebars on mobile when selection changes
+        // Auto-hide sidebars on mobile when menu item is selected
         if (isMobile) {
             setSidebarOpen(false);
             setAdminSidebarOpen(false);
@@ -183,6 +173,8 @@ export const AdminView: React.FC = () => {
                 return <QuizConfiguration />;
             case 'user-management':
                 return isFullAdmin ? <UserManagement /> : <div className="p-8 text-center">Access Denied</div>;
+            case 'collections-management':
+                return isFullAdmin ? <AdminCollectionsPanel /> : <div className="p-8 text-center">Access Denied</div>;
             case 'reports':
                 return <ReportsPage />;
             default:
@@ -209,7 +201,7 @@ export const AdminView: React.FC = () => {
                     />
                 )}
                 <main 
-                    ref={mainContentRef}
+                    ref={scrollElementRef}
                     onScroll={handleScroll}
                     className="flex-1 flex flex-col bg-gray-100 dark:bg-gray-800 overflow-y-auto relative transition-all duration-300 border-l border-gray-200 dark:border-gray-700 h-full">
                     {renderContent()}

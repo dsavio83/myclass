@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ResourceType } from './types';
-import { BookIcon, FlashcardIcon, NotesIcon, QAIcon, ActivityIcon, ExtraIcon, VideoIcon, AudioIcon, WorksheetIcon, QuestionPaperIcon, QuizIcon } from './components/icons/ResourceTypeIcons';
+import { BookIcon, FlashcardIcon, NotesIcon, QAIcon, ActivityIcon, ExtraIcon, VideoIcon, AudioIcon, WorksheetIcon, QuestionPaperIcon, QuizIcon, SlideIcon } from './components/icons/ResourceTypeIcons';
 
 interface ResourceInfo {
   key: ResourceType;
@@ -12,6 +12,7 @@ interface ResourceInfo {
 
 export const RESOURCE_TYPES: ResourceInfo[] = [
   { key: 'book', label: 'Book', Icon: BookIcon },
+  { key: 'slide', label: 'Slides', Icon: SlideIcon },
   { key: 'flashcard', label: 'Flashcard', Icon: FlashcardIcon },
   { key: 'notes', label: 'Notes', Icon: NotesIcon },
   { key: 'qa', label: 'Q&A', Icon: QAIcon },

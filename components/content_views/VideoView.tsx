@@ -52,69 +52,248 @@ const getYouTubeEmbedUrl = (raw: string | undefined | null): string | null => {
 };
 
 const SavedVideoViewer: React.FC<{ content: Content; onRemove: () => void; isAdmin: boolean; }> = ({ content, onRemove, isAdmin }) => {
-    const [videoError, setVideoError] = useState(false);
-    const [embedUrl, setEmbedUrl] = useState<string | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [videoError, setVideoError] = useState<string | null>(null);
+    const [videoLoading, setVideoLoading] = useState(true);
+    const [videoSrc, setVideoSrc] = useState<string>('');
 
-    useEffect(() => {
-        setVideoError(false);
-        setLoading(true);
+    // Enhanced video source detection with comprehensive debugging - simplified like AudioView
+    const getVideoSrc = () => {
+        console.log('[VideoView] Getting video source for content:', {
+            id: content._id,
+            type: content.type,
+            title: content.title,
+            hasFilePath: !!content.filePath,
+            filePath: content.filePath,
+            hasBody: !!content.body,
+            bodyLength: content.body?.length || 0,
+            bodyPreview: content.body?.substring(0, 100) + (content.body?.length > 100 ? '...' : ''),
+            bodyStartsWith: content.body?.substring(0, 50)
+        });
+
         const body = (content.body || '').trim();
-        const generatedEmbed = getYouTubeEmbedUrl(body);
-        if (generatedEmbed) setEmbedUrl(generatedEmbed);
-        else {
-            const isHttpUrl = /^https?:\/\//i.test(body);
-            const isDataUrl = body.startsWith('data:video/');
-            if (!isHttpUrl && !isDataUrl) setEmbedUrl(null);
+        
+        // Priority 1: YouTube URL (must be valid URL) - Check this FIRST for YouTube videos
+        const youtubeEmbed = getYouTubeEmbedUrl(body);
+        if (youtubeEmbed) {
+            console.log('[VideoView] YouTube video detected:', youtubeEmbed);
+            return youtubeEmbed;
         }
-        setLoading(false);
+        
+        // Priority 2: Local file upload with valid filePath (HIGHEST PRIORITY for uploaded files)
+        if (content.filePath && content.filePath.trim() !== '') {
+            const fileSrc = `/api/content/${content._id}/file`;
+            console.log('[VideoView] Using uploaded file:', fileSrc);
+            return fileSrc;
+        }
+        
+        // Priority 3: External video URL (must be valid URL and not JSON)
+        if (body && body !== '') {
+            // Check if it's a valid external URL
+            if (body.startsWith('http://') || body.startsWith('https://')) {
+                console.log('[VideoView] Using external URL:', body);
+                return body;
+            }
+            
+            // Check if it's base64 video data
+            if (body.startsWith('data:video/')) {
+                console.log('[VideoView] Using base64 video data');
+                return body;
+            }
+            
+            // If body contains JSON metadata (common issue), don't use it as source
+            try {
+                const parsed = JSON.parse(body);
+                if (parsed && typeof parsed === 'object') {
+                    console.log('[VideoView] Body contains JSON metadata, not using as video source:', parsed);
+                    return '';
+                }
+            } catch (e) {
+                // Not JSON, could be a plain text URL or other content
+                console.log('[VideoView] Body is not JSON, checking if it might be a direct URL');
+            }
+        }
+        
+        // No valid source found
+        console.warn('[VideoView] No valid video source found for content:', content._id);
+        return '';
+    };
+
+    // Update video source when content changes
+    useEffect(() => {
+        const src = getVideoSrc();
+        setVideoSrc(src);
+        
+        // Don't set loading for YouTube videos - they don't use video element events
+        const isYouTubeVideo = src && src.includes('youtube.com/embed/');
+        setVideoLoading(isYouTubeVideo ? false : (src ? true : false));
+        setVideoError(null);
     }, [content]);
 
-    const body = (content.body || '').trim();
-    const isYouTube = !!embedUrl;
+    const handleVideoLoad = () => {
+        console.log('[VideoView] Video loading started');
+        setVideoLoading(true);
+        setVideoError(null);
+    };
 
-    let directVideoUrl: string | null = null;
-    if (!isYouTube) {
-        if (content.filePath) {
-            directVideoUrl = `/api/content/${content._id}/file`;
-        } else if (body.startsWith('http') || body.startsWith('data:video/')) {
-            directVideoUrl = body;
+    const handleVideoCanPlay = () => {
+        console.log('[VideoView] Video can play');
+        setVideoLoading(false);
+        setVideoError(null);
+    };
+
+    const handleVideoError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+        const error = e.currentTarget.error;
+        const videoElement = e.currentTarget;
+        let errorMessage = 'Unknown video error';
+        
+        console.error('[VideoView] Video playback error details:', {
+            error: error,
+            src: videoSrc,
+            currentSrc: videoElement.currentSrc,
+            networkState: videoElement.networkState,
+            readyState: videoElement.readyState,
+            duration: videoElement.duration,
+            errorCode: error?.code,
+            errorMessage: error?.message
+        });
+        
+        if (error) {
+            switch (error.code) {
+                case MediaError.MEDIA_ERR_ABORTED:
+                    errorMessage = 'Video loading was aborted';
+                    break;
+                case MediaError.MEDIA_ERR_NETWORK:
+                    errorMessage = 'Network error while loading video. Please check your internet connection.';
+                    break;
+                case MediaError.MEDIA_ERR_DECODE:
+                    errorMessage = 'Video file is corrupted or unsupported format. Please try converting to MP4 or WebM.';
+                    break;
+                case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                    errorMessage = 'Video format not supported or file not found. Supported formats: MP4, WebM, OGV, AVI, MOV.';
+                    break;
+                default:
+                    errorMessage = `Video error: ${error.message}`;
+            }
         }
-    }
+        
+        // Additional debugging for specific issues
+        if (videoSrc.includes('/api/content/') && !videoSrc.endsWith('/file')) {
+            errorMessage += ' (Invalid API endpoint format)';
+        }
+        
+        console.error('[VideoView] Final error message:', errorMessage);
+        
+        setVideoLoading(false);
+        setVideoError(errorMessage);
+    };
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 relative flex flex-col h-full">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 relative w-full">
             {isAdmin && (
                 <div className="absolute top-4 right-4 z-10">
-                    <button onClick={onRemove} className="p-2 rounded-full bg-white/50 dark:bg-black/50 hover:bg-white/80 dark:hover:bg-black/80 backdrop-blur-sm shadow-md transition-colors" title="Remove Video">
+                    <button onClick={onRemove} className="p-2 rounded-full bg-white/50 dark:bg-black/50 hover:bg-white/80 dark:hover:bg-black/80 backdrop-blur-sm shadow-md" title="Remove Video">
                         <TrashIcon className="w-5 h-5 text-gray-600 dark:text-gray-300" />
                     </button>
                 </div>
             )}
-            <h2 className="text-xl font-semibold mb-4 pr-12 truncate shrink-0 text-gray-800 dark:text-white">{content.title}</h2>
-
-            <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-inner">
-                {loading && (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+            <h2 className="text-xl font-semibold mb-4 pr-12 truncate">{content.title}</h2>
+            
+            <div className="w-full">
+                {/* Loading state */}
+                {videoLoading && (
+                    <div className="flex items-center justify-center py-4">
+                        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                        <span className="text-sm text-gray-600 dark:text-gray-400">Loading video...</span>
                     </div>
                 )}
-                {isYouTube && embedUrl && (
-                    <iframe key={embedUrl} src={embedUrl} className="w-full h-full" title={content.title} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen onError={() => setVideoError(true)} />
-                )}
-                {isYouTube && videoError && (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-gray-200 dark:bg-gray-700">
-                        <p className="text-red-600 dark:text-red-400 font-semibold">Error loading YouTube video</p>
-                        <a href={body} target="_blank" rel="noopener noreferrer" className="mt-2 text-blue-600 hover:underline">Watch on YouTube</a>
+                
+                {/* YouTube video */}
+                {videoSrc && videoSrc.includes('youtube.com/embed/') && (
+                    <div className="aspect-video w-full bg-black rounded-lg overflow-hidden">
+                        <iframe 
+                            key={videoSrc}
+                            src={videoSrc} 
+                            className="w-full h-full" 
+                            title={content.title} 
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            referrerPolicy="strict-origin-when-cross-origin" 
+                            allowFullScreen 
+                            onError={() => setVideoError(true)} 
+                        />
                     </div>
                 )}
-                {directVideoUrl && (
-                    <video src={directVideoUrl} controls className="w-full h-full" onError={() => setVideoError(true)}>Your browser does not support the video tag.</video>
+                
+                {/* Video player with enhanced error handling */}
+                {videoSrc && !videoSrc.includes('youtube.com/embed/') && (
+                    <div className="aspect-video w-full bg-black rounded-lg overflow-hidden">
+                        <video 
+                            controls 
+                            className="w-full h-full" 
+                            src={videoSrc}
+                            onLoadStart={handleVideoLoad}
+                            onCanPlay={handleVideoCanPlay}
+                            onError={handleVideoError}
+                            style={{ display: videoLoading ? 'none' : 'block' }}
+                        >
+                            Your browser does not support the video element.
+                        </video>
+                    </div>
                 )}
-                {!isYouTube && !directVideoUrl && !loading && (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-center p-4 bg-gray-200 dark:bg-gray-700">
-                        <VideoIcon className="w-16 h-16 text-gray-400 dark:text-gray-500 mb-4" />
-                        <p className="text-gray-600 dark:text-gray-300 font-semibold">Invalid video data</p>
+                
+                {/* Error state */}
+                {videoError && (
+                    <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Video Playback Error</h3>
+                                <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                                    <p>{videoError}</p>
+                                    <p className="mt-1 text-xs">
+                                        <strong>Debug Info:</strong> Source: {videoSrc || 'None'} | File Path: {content.filePath || 'None'}
+                                    </p>
+                                </div>
+                                <div className="mt-3">
+                                    <button
+                                        onClick={() => {
+                                            setVideoError(null);
+                                            setVideoLoading(true);
+                                            const src = getVideoSrc();
+                                            setVideoSrc(src);
+                                        }}
+                                        className="text-xs bg-red-100 dark:bg-red-800 text-red-800 dark:text-red-200 px-2 py-1 rounded hover:bg-red-200 dark:hover:bg-red-700"
+                                    >
+                                        Retry
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                
+                {/* No source state */}
+                {!videoSrc && !videoError && !videoLoading && (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                        <div className="flex items-start">
+                            <div className="flex-shrink-0">
+                                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                            </div>
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">No Video Source</h3>
+                                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                                    <p>No valid video source found for this content.</p>
+                                    <p className="mt-1 text-xs">
+                                        <strong>Content Info:</strong> ID: {content._id} | Type: {content.type} | File Path: {content.filePath || 'None'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
@@ -133,12 +312,12 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
     const [url, setUrl] = useState('');
     const { showToast } = useToast();
 
-    // Optimized Path and Title Logic - Fast loading with minimal API calls
+    // Optimized Path and Title Logic - Fast loading with minimal API calls (simplified like AudioView)
     useEffect(() => {
         const fetchTitleAndPath = async () => {
             try {
                 console.log('=== FAST VIDEO PATH GENERATION START ===');
-
+                
                 // Strategy 1: Try breadcrumbs first (fastest for lessons)
                 const breadcrumbs = await api.getBreadcrumbs(lessonId);
                 if (breadcrumbs && breadcrumbs.trim()) {
@@ -147,31 +326,31 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                         const fileName = parts[parts.length - 1];
                         const hierarchyPath = parts.join('/');
                         const fullVirtualPath = `${hierarchyPath}/Video/${fileName}.mp4`;
-
+                        
                         console.log('Fast video path from breadcrumbs:', fullVirtualPath);
                         setTitle(fileName);
                         setFolderPath(fullVirtualPath);
                         return;
                     }
                 }
-
+                
                 console.log('Breadcrumbs failed, trying fast search...');
-
+                
                 // Strategy 2: Fast identification with minimal calls
                 let foundLevel = false;
                 let breadcrumbParts: string[] = [];
                 let fileName = 'New Video';
-
+                
                 // Get all classes first (usually just 2-3)
                 const classes = await api.getClasses();
-
+                
                 // Try each class - parallel approach would be better but this is still fast
                 for (const classItem of classes) {
                     const subjects = await api.getSubjectsByClassId(classItem._id);
-
+                    
                     for (const subject of subjects) {
                         const units = await api.getUnitsBySubjectId(subject._id);
-
+                        
                         // Check if lessonId matches any unit directly
                         const unit = units.find(u => u._id === lessonId);
                         if (unit) {
@@ -180,11 +359,11 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                             foundLevel = true;
                             break;
                         }
-
+                        
                         // Check subUnits
                         for (const unitItem of units) {
                             const subUnits = await api.getSubUnitsByUnitId(unitItem._id);
-
+                            
                             const subUnit = subUnits.find(su => su._id === lessonId);
                             if (subUnit) {
                                 breadcrumbParts = [classItem.name, subject.name, unitItem.name, subUnit.name];
@@ -192,7 +371,7 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                                 foundLevel = true;
                                 break;
                             }
-
+                            
                             // Only check lessons if we haven't found it yet
                             if (!foundLevel) {
                                 for (const subUnitItem of subUnits) {
@@ -208,17 +387,17 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                                 }
                             }
                         }
-
+                        
                         if (foundLevel) break;
                     }
                     if (foundLevel) break;
                 }
-
+                
                 // Generate final path
                 if (foundLevel && breadcrumbParts.length > 0) {
                     const hierarchyPath = breadcrumbParts.join('/');
                     const fullVirtualPath = `${hierarchyPath}/Video/${fileName}.mp4`;
-
+                    
                     console.log('Fast video path from search:', fullVirtualPath);
                     setTitle(fileName);
                     setFolderPath(fullVirtualPath);
@@ -227,24 +406,24 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                     console.log('Quick video fallback for:', lessonId);
                     const fallbackTitle = `Video_${lessonId.slice(-4)}`;
                     const fallbackPath = `Class/Video/${fallbackTitle}.mp4`;
-
+                    
                     setTitle(fallbackTitle);
                     setFolderPath(fallbackPath);
                 }
-
+                
             } catch (e) {
                 console.error('Fast video path generation error:', e);
                 setTitle('New Video');
                 setFolderPath('Default/Video/New Video.mp4');
             }
         };
-
+        
         if (lessonId) {
             // No timeout delay for faster response
             fetchTitleAndPath();
         } else {
             setTitle('Select a lesson/unit first');
-            setFolderPath('Videos/Pending Selection');
+            setFolderPath('Video/Pending Selection');
         }
     }, [lessonId]);
 
@@ -274,63 +453,62 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (isSaving || !title.trim()) { setError("Please provide a title."); return; }
-
-        let body = '';
-        let fullPath = folderPath;
-
-        if (activeTab === 'upload') {
-            if (!file) { setError("Please select a file to upload."); return; }
-
-            setIsSaving(true);
-            setError(null);
-
-            try {
+        
+        setIsSaving(true);
+        setError(null);
+        try {
+            if (activeTab === 'upload') {
+                if (!file) { setError("Please select a file to upload."); return; }
+                
+                // Use FormData for proper file upload - same as AudioView
                 const formData = new FormData();
                 formData.append('file', file);
                 formData.append('lessonId', lessonId);
                 formData.append('type', 'video');
                 formData.append('title', title.trim());
-                formData.append('metadata', JSON.stringify({ category: 'Custom', subCategory: fullPath }));
-
-                await api.uploadFile(formData);
-                showToast('Video uploaded successfully!', 'success');
-                onAdd();
-            } catch (err: any) {
-                console.error('Upload error:', err);
-                setError(err.message || "Failed to upload video.");
-                showToast('Failed to upload video.', 'error');
-            } finally {
-                setIsSaving(false);
+                
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `Upload failed: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Video uploaded successfully:', result);
+            } else {
+                // Handle URL-based video (YouTube)
+                const embed = getYouTubeEmbedUrl(url);
+                if (!embed) {
+                    setError("Please enter a valid YouTube URL.");
+                    showToast('Invalid YouTube URL', 'error');
+                    return;
+                }
+                
+                await api.addContent({ 
+                    title: title.trim(), 
+                    body: url, 
+                    lessonId, 
+                    type: 'video',
+                    metadata: { 
+                        category: 'External', 
+                        subCategory: 'External Link',
+                        videoUrl: url
+                    } as any 
+                });
             }
-            return;
-        } else {
-            const embed = getYouTubeEmbedUrl(url);
-            if (!embed) {
-                setError("Please enter a valid YouTube URL.");
-                showToast('Invalid YouTube URL', 'error');
-                return;
-            }
-            body = url;
-            fullPath = 'External Link';
-        }
-
-        setIsSaving(true);
-        setError(null);
-        try {
-            await api.addContent({
-                title: title.trim(),
-                body,
-                lessonId,
-                type: 'video',
-                metadata: { category: 'Custom', subCategory: fullPath } as any
-            });
-            showToast('Video added successfully!', 'success');
+            
+            showToast('Video added successfully', 'success');
             onAdd();
-        } catch (err) {
-            setError("Failed to save video. Please try again.");
-            showToast('Failed to save video.', 'error');
-        } finally {
-            setIsSaving(false);
+        } catch (err) { 
+            console.error('Video upload error:', err);
+            setError(err instanceof Error ? err.message : "Failed to save video. Please try again."); 
+            showToast('Failed to save video', 'error');
+        } finally { 
+            setIsSaving(false); 
         }
     };
 
@@ -398,30 +576,32 @@ const AddVideoForm: React.FC<{ lessonId: string; onAdd: () => void; onCancel: ()
                         </div>
                     )}
                     {error && <p className="text-sm text-red-500 dark:text-red-400">{error}</p>}
-                    <div className="flex gap-4">
+                    <div className="flex gap-3 pt-2">
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="flex items-center justify-center w-10 h-10 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition-colors sm:w-full sm:px-4 sm:h-auto sm:justify-start"
+                            className="px-3 py-2 sm:px-4 bg-gray-200 dark:bg-gray-700 rounded-md text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                            disabled={isSaving}
                         >
-                            <svg className="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
                             <span className="hidden sm:inline">Cancel</span>
+                            <span className="sm:hidden">✕</span>
                         </button>
                         <button
                             type="submit"
                             disabled={isSaving}
-                            className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors sm:w-full sm:px-4 sm:h-auto sm:justify-start"
+                            className="px-3 py-2 sm:px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
                         >
                             {isSaving ? (
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin sm:mr-2" />
+                                <>
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin sm:mr-2 inline-block align-middle" />
+                                    <span className="hidden sm:inline">Saving...</span>
+                                </>
                             ) : (
-                                <svg className="w-5 h-5 sm:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
+                                <>
+                                    <span className="hidden sm:inline">Save Video</span>
+                                    <span className="sm:hidden">✓</span>
+                                </>
                             )}
-                            <span className="hidden sm:inline">{isSaving ? 'Saving...' : 'Save Video'}</span>
                         </button>
                     </div>
                 </div>
@@ -491,7 +671,7 @@ export const VideoView: React.FC<VideoViewProps> = ({ lessonId, user }) => {
                 {canEdit && !showAddForm && (
                     <button
                         onClick={() => setShowAddForm(true)}
-                        className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors sm:px-4 sm:w-auto sm:h-auto"
+                        className="flex items-center justify-center p-2.5 w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors sm:px-4 sm:w-auto sm:h-auto"
                         title="Add New Video"
                     >
                         <PlusIcon className="w-5 h-5" />

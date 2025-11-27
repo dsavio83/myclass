@@ -116,7 +116,7 @@ export const Login: React.FC = () => {
         
         <div className="text-center">
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            © 2024 Learning Platform. All rights reserved.
+            © 2025 Learning Platform. All rights reserved.
           </p>
         </div>
       </div>
